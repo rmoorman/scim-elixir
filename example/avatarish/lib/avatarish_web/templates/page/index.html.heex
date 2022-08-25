@@ -1,0 +1,13 @@
+<section class="phx-hero">
+  <h1>Look at those avatarish things generated based on pushed SCIM attributes!</h1>
+</section>
+
+<section class="row">
+  <article class="column">
+    <%= for user <- @user_list do %>
+      <%= link to: Routes.avatar_path(@conn, :image, user), target: "_blank" do %>
+        <img src={Routes.avatar_path(@conn, :image, user)} alt={user.id} />
+      <% end %>
+    <% end %>
+  </article>
+</section>

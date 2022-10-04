@@ -1,16 +1,18 @@
-defmodule SCIM.RouterCase do
+defmodule SCIM.V2.RouterCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
       use Plug.Test
       import Plug.Conn
-      import SCIM.RouterCase
+      import SCIM.V2.RouterCase
 
       # FIXME: is there a better alternative that does not require phoenix?
       import Phoenix.ConnTest, only: [json_response: 2]
 
-      alias SCIM.RouterCase.KV
+      import SCIM.V2.TestHelpers
+
+      alias SCIM.V2.RouterCase.KV
     end
   end
 

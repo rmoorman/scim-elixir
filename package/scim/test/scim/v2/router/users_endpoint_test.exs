@@ -1,5 +1,5 @@
 defmodule SCIM.V2.Router.UsersEndpointTest do
-  use SCIM.RouterCase, async: true
+  use SCIM.V2.RouterCase, async: true
 
   defmodule Impl do
     use SCIM.V2.Adapter

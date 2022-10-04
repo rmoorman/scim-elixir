@@ -1,4 +1,4 @@
-defmodule Scim.V2.Filter.Parser do
+defmodule SCIM.V2.Filter.Parser do
   @moduledoc """
   Parser module for parsing SCIM filters and paths
 

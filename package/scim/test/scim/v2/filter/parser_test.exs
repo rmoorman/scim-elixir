@@ -1,5 +1,7 @@
-defmodule Scim.V2.Filter.ParserTest do
+defmodule SCIM.V2.Filter.ParserTest do
   use ExUnit.Case, async: true
+
+  import SCIM.V2.TestHelpers
 
   describe "parse valid filter without error" do
     @filter_rules [
@@ -618,13 +620,5 @@ defmodule Scim.V2.Filter.ParserTest do
 
       assert {:ok, ^expected, "", _, _, _} = parse(:scim_path, @rule)
     end
-  end
-
-  # Call a parser function and assert a timely response.
-  defp parse(parser \\ Scim.V2.Filter.Parser, fun, input)
-  defp parse(parser, fun, input) do
-    task = Task.async(fn -> apply(parser, fun, [input]) end)
-    assert {:ok, result} = Task.yield(task, 200) || Task.shutdown(task)
-    result
   end
 end

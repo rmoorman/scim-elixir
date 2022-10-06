@@ -9,10 +9,10 @@ defmodule SCIM.V2.Filter.Parser do
   booleans, nil, and numbers. More complex conversions should be done
   elsewhere.
   """
-  @external_resource "lib/scim/v2/filter/scim.abnf"
+  @external_resource "lib/scim/v2/filter/parser.abnf"
 
   use AbnfParsec,
-    abnf_file: "lib/scim/v2/filter/scim.abnf",
+    abnf_file: "lib/scim/v2/filter/parser.abnf",
     transform: %{
       "string" => {:reduce, {List, :to_string, []}},
       "true" => {:replace, true},
@@ -70,6 +70,9 @@ defmodule SCIM.V2.Filter.Parser do
       "ATTRNAME",
       "subAttr"
     ]
+
+  def parse(:scim_filter, input), do: scim_filter(input)
+  def parse(:scim_path, input), do: scim_path(input)
 
   # convert `{:subattr, [".", {:attrname, "familyName"}]}` to `{:subattr, ["familyName"]}`
   defp extract_subname(rest, [{:attrname, name}, "."], context, _line, _offset) do

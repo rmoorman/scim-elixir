@@ -65,7 +65,7 @@ defmodule SCIM.V2.Filter.ParserTest do
     test "~s|#{@rule}| used as a filter causes an error" do
       rule = @rule
       error = "expected string \"(\""
-      assert {:error, ^error, ^rule, _, _, _ } = parse(:scim_filter, @rule)
+      assert {:error, ^error, ^rule, _, _, _} = parse(:scim_filter, @rule)
     end
 
     @rule ~s|adresses[foo]|
@@ -318,6 +318,7 @@ defmodule SCIM.V2.Filter.ParserTest do
     """
     test @rule do
       assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           filter_grouping: [
@@ -386,6 +387,7 @@ defmodule SCIM.V2.Filter.ParserTest do
           ]
         ]
       ]
+
       assert result == expected
     end
 
@@ -472,6 +474,7 @@ defmodule SCIM.V2.Filter.ParserTest do
     @rule ~s|id eq 60 and id eq 1188|
     test @rule do
       assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           attrexp: [
@@ -487,6 +490,7 @@ defmodule SCIM.V2.Filter.ParserTest do
           ]
         ]
       ]
+
       assert result == expected
     end
 

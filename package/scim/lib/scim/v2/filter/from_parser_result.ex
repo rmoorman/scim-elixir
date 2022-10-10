@@ -2,8 +2,10 @@ defmodule SCIM.V2.Filter.FromParserResult do
   alias SCIM.V2.Filter.{
     FilterExpression,
     PathExpression,
-    BooleanExpression,
     AttributeExpression,
+    AttributePathExpression,
+    ValuePathExpression,
+    BooleanExpression,
     ValueExpression
   }
 
@@ -29,28 +31,32 @@ defmodule SCIM.V2.Filter.FromParserResult do
   #  [%PathExpression{value: build(value)} | build(rest)]
   # end
 
-  def build([{:attrexp, value} | rest]) do
-    schema =
-      case value[:attrpath][:schema_uri] do
-        "" -> nil
-        schema -> schema
-      end
-
-    attribute = value[:attrpath][:attrname]
-
-    path = %PathExpression{
-      schema: schema,
-      attribute: attribute,
-      subattribute: nil
+  def build([{:attrexp, attrexp} | rest]) do
+    path = %AttributePathExpression{
+      schema:
+        case attrexp[:attrpath][:schema_uri] do
+          "" -> nil
+          schema -> schema
+        end,
+      attribute: attrexp[:attrpath][:attrname],
+      subattribute: attrexp[:attrpath][:subattr],
     }
 
     {op, value} =
-      case {value[:compareop], value[:presentop]} do
-        {nil, presentop} -> {@attr_op_mapping[presentop], nil}
-        {compareop, nil} -> {@attr_op_mapping[compareop], build({:value, value[:compvalue]})}
+      cond do
+        op = attrexp[:presentop] -> {@attr_op_mapping[op], nil}
+        op = attrexp[:compareop] -> {@attr_op_mapping[op], build({:value, attrexp[:compvalue]})}
       end
 
     [%AttributeExpression{path: path, op: op, value: value} | build(rest)]
+  end
+
+  def build([{:valuepath, valuepath}, {:subattr, subattr} | rest]) do
+    [%ValuePathExpression{} | build(rest)]
+  end
+
+  def build([{:valuepath, valuepath} | rest]) do
+    [%ValuePathExpression{} | build(rest)]
   end
 
   def build({:value, {:number, value}}), do: %ValueExpression{type: :number, value: value}

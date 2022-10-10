@@ -6,8 +6,9 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
   alias SCIM.V2.Filter.{
     FromParserResult,
     FilterExpression,
-    PathExpression,
     AttributeExpression,
+    AttributePathExpression,
+    ValuePathExpression,
     ValueExpression
   }
 
@@ -47,7 +48,7 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
         %FilterExpression{
           value: [
             %AttributeExpression{
-              path: %PathExpression{schema: nil, attribute: "id", subattribute: nil},
+              path: %AttributePathExpression{schema: nil, attribute: "id", subattribute: nil},
               op: :pr,
               value: nil
             }
@@ -66,10 +67,46 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
         %FilterExpression{
           value: [
             %AttributeExpression{
-              path: %PathExpression{schema: nil, attribute: "id", subattribute: nil},
+              path: %AttributePathExpression{schema: nil, attribute: "id", subattribute: nil},
               op: :eq,
               value: %ValueExpression{type: :number, value: %Decimal{coef: 1, exp: 0, sign: 1}}
             }
+          ]
+        }
+      ]
+
+      assert data == expected
+    end
+
+    @rule ~s|contactEmail.value ew "@example.com"|
+    test @rule do
+      assert {:ok, data} = build(:scim_filter, @rule)
+
+      expected = [
+        %FilterExpression{
+          value: [
+            %AttributeExpression{
+              path: %AttributePathExpression{schema: nil, attribute: "contactEmail", subattribute: "value"},
+              op: :ew,
+              value: %ValueExpression{type: :string, value: "@example.com"},
+            }
+          ]
+        }
+      ]
+
+      assert data == expected
+    end
+
+    @tag :dev
+    @rule ~s|emails[type eq "work"]|
+    test @rule do
+      assert {:ok, data} = build(:scim_filter, @rule)
+
+      expected = [
+        %FilterExpression{
+          value: [
+            %ValuePathExpression{
+            },
           ]
         }
       ]

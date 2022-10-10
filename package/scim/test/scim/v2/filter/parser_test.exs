@@ -140,6 +140,7 @@ defmodule SCIM.V2.Filter.ParserTest do
 
     @rule ~s|userName Eq "john"|
     test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
       expected = [
         scim_filter: [
           attrexp: [
@@ -152,8 +153,7 @@ defmodule SCIM.V2.Filter.ParserTest do
           ]
         ]
       ]
-
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert result == expected
     end
 
     @rule ~s|name.familyName co "O'Malley"|
@@ -173,6 +173,30 @@ defmodule SCIM.V2.Filter.ParserTest do
       ]
 
       assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+    end
+
+    @rule ~s|userName[value sw "foo" and value ew "bar"]|
+    test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      expected = [
+        scim_filter: [
+          valuepath: [
+            attrpath: [schema_uri: "", attrname: "userName"],
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "sw",
+              compvalue: "foo",
+            ],
+            and_or: "and",
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "ew",
+              compvalue: "bar",
+            ],
+          ]
+        ]
+      ]
+      assert result == expected
     end
 
     @rule ~s|urn:ietf:params:scim:schemas:core:2.0:User:userName sw "J"|

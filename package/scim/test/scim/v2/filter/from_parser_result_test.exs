@@ -98,7 +98,7 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
     end
 
     @tag :dev
-    @rule ~s|emails[type eq "work" and not (value ew "@example.com")]|
+    @rule ~s|userType eq "Employee" and emails[type eq "work" and not (value ew "@example.com")]|
     test @rule do
       assert {:ok, data} = build(:scim_filter, @rule)
 
@@ -118,5 +118,29 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
 
       assert data == expected
     end
+
+    @tag :dev
+    @rule ~s|emails[type eq "work" and not (value ew "@example.com")].label|
+    test @rule do
+      assert {:ok, data} = build(:scim_path, @rule)
+
+      expected = [
+        %FilterExpression{
+          value: [
+            %AttributePathExpression{attribute: "emails", filter: [
+              %AttributeRequirementExpression{
+                path: %AttributePathExpression{attribute: "type"},
+                op: :eq,
+                value: %ValueExpression{type: :string, value: "work"},
+              }
+            ]}
+          ]
+        }
+      ]
+
+      assert data == expected
+    end
+
+
   end
 end

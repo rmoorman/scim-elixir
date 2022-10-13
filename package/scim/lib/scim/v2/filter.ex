@@ -1,14 +1,14 @@
 defmodule SCIM.V2.Filter do
   defmodule FilterExpression do
     @moduledoc """
-    Wraps SCIM filters
+    Wraps a SCIM filter
     """
     defstruct [value: []]
   end
 
   defmodule PathExpression do
     @moduledoc """
-    Wraps SCIM paths
+    Wraps a SCIM path
     """
     defstruct [:value]
   end

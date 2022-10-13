@@ -25,23 +25,78 @@ defmodule SCIM.V2.Filter.FromParserResult do
   ###
   ###
 
-  def build([scim_filter: value]), do: [build({:scim_filter, value})]
-  def build({:scim_filter, value}) do
-    case value do
-      [valuepath: valuepath, subattr: subattr] ->
-        valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
-        build({:attribute_path, valuepath})
 
-      [valuepath: valuepath] ->
-        build({:attribute_path, valuepath})
+  def build([]), do: []
+  def build([scim_filter: value]), do: [%FilterExpression{value: filter(value)}]
+  def build([scim_path: value]), do: [%PathExpression{value: path(value)}]
 
-      value -> build({:filter, value})
-    end
+
+  defp filter(_), do: []
+
+  defp path([valuepath: valuepath, subattr: subattr]) do
+    valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
+    path([valuepath: valuepath])
+  end
+  defp path([valuepath: valuepath]) do
+    {attrpath, filter} = Keyword.split(valuepath, [:attrpath])
+
+    %AttributePathExpression{
+      schema: schema(attrpath[:attrpath][:schema_uri]),
+      attribute: attrpath[:attrpath][:attrname],
+      subattribute: attrpath[:attrpath][:subattr],
+      filter: filter(filter),
+    }
   end
 
-  def build({:attribute_path, _valuepath}), do: nil
+  defp schema(""), do: nil
+  defp schema(schema), do: schema
 
-  def build({:filter, _filter}), do: nil
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  #def build([]), do: []
+  #def build([{:scim_filter, value}]), do: [%FilterExpression{value: filter(value)}]
+  ##def build([{:scim_path, value}]), do: [%PathExpression{value: build(value)}]
+
+  #defp filter([]), do: []
+  #defp filter([_ | _] = list) do
+  #  # convert nots
+  #  # group ands
+  #  # wrap with ors
+  #end
+
+  #def build([scim_filter: value]), do: [build({:scim_filter, value})]
+  #def build({:scim_filter, value}) do
+  #  case value do
+  #    [valuepath: valuepath, subattr: subattr] ->
+  #      valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
+  #      build({:attribute_path, valuepath})
+
+  #    [valuepath: valuepath] ->
+  #      build({:attribute_path, valuepath})
+
+  #    value -> build({:filter, value})
+  #  end
+  #end
+
+  #def build({:attribute_path, _valuepath}), do: nil
+
+  #def build({:filter, _filter}), do: nil
 
 
   """

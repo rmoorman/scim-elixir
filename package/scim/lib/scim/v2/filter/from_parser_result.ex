@@ -1,19 +1,19 @@
 defmodule SCIM.V2.Filter.FromParserResult do
   alias SCIM.V2.Filter.{
-    FilterExpression,
-    PathExpression,
-    AttributeRequirementExpression,
-    AttributePathExpression,
-    GroupingExpression,
-    BooleanExpression,
-    ValueExpression,
+    Filter,
+    Path,
+    Condition,
+    And,
+    Or,
+    Not,
+    Value
   }
 
   @op_list [:pr, :eq, :ne, :co, :sw, :ew, :gt, :lt, :ge, :le, :and, :or, :not]
   @op_mapping Map.new(@op_list, fn op -> {Atom.to_string(op), op} end)
 
   def build({:ok, result, "", _context, _line, _column}),
-    do: {:ok, result |> IO.inspect(label: "\n\ninput") |> build() |> IO.inspect(label: "output")}
+    do: {:ok, build(result)}
 
   def build({:ok, _result, rest, _context, _line, _column}),
     do: {:error, {:parser, "unparsable rest: #{rest}"}}
@@ -25,63 +25,50 @@ defmodule SCIM.V2.Filter.FromParserResult do
   ###
   ###
 
+  def build(scim_filter: value), do: [filter(value)]
+  def build(scim_path: value), do: [path(value)]
 
-  def build([]), do: []
-  def build([scim_filter: value]), do: [%FilterExpression{value: filter(value)}]
-  def build([scim_path: value]), do: [%PathExpression{value: path(value)}]
+  defp filter(nil), do: nil
+  defp filter(value), do: %Filter{value: value}
 
-
-  defp filter(_), do: []
-
-  defp path([valuepath: valuepath, subattr: subattr]) do
+  defp path(valuepath: valuepath, subattr: subattr) do
     valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
-    path([valuepath: valuepath])
+    path(valuepath: valuepath)
   end
-  defp path([valuepath: valuepath]) do
-    {attrpath, filter} = Keyword.split(valuepath, [:attrpath])
 
-    %AttributePathExpression{
-      schema: schema(attrpath[:attrpath][:schema_uri]),
-      attribute: attrpath[:attrpath][:attrname],
-      subattribute: attrpath[:attrpath][:subattr],
-      filter: filter(filter),
+  defp path(valuepath: valuepath) do
+    {[attrpath: attrpath], filter} = Keyword.split(valuepath, [:attrpath])
+    path(attrpath: attrpath, filter: filter)
+  end
+
+  defp path(opts) do
+    attrpath = Keyword.fetch!(opts, :attrpath)
+    filter = Keyword.get(opts, :filter)
+
+    %Path{
+      schema: schema(attrpath[:schema_uri]),
+      attribute: attrpath[:attrname],
+      subattribute: attrpath[:subattr],
+      filter: filter(filter)
     }
   end
 
   defp schema(""), do: nil
   defp schema(schema), do: schema
 
+  # def build([]), do: []
+  # def build([{:scim_filter, value}]), do: [%FilterExpression{value: filter(value)}]
+  ## def build([{:scim_path, value}]), do: [%PathExpression{value: build(value)}]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  #def build([]), do: []
-  #def build([{:scim_filter, value}]), do: [%FilterExpression{value: filter(value)}]
-  ##def build([{:scim_path, value}]), do: [%PathExpression{value: build(value)}]
-
-  #defp filter([]), do: []
-  #defp filter([_ | _] = list) do
+  # defp filter([]), do: []
+  # defp filter([_ | _] = list) do
   #  # convert nots
   #  # group ands
   #  # wrap with ors
-  #end
+  # end
 
-  #def build([scim_filter: value]), do: [build({:scim_filter, value})]
-  #def build({:scim_filter, value}) do
+  # def build([scim_filter: value]), do: [build({:scim_filter, value})]
+  # def build({:scim_filter, value}) do
   #  case value do
   #    [valuepath: valuepath, subattr: subattr] ->
   #      valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
@@ -92,12 +79,11 @@ defmodule SCIM.V2.Filter.FromParserResult do
 
   #    value -> build({:filter, value})
   #  end
-  #end
+  # end
 
-  #def build({:attribute_path, _valuepath}), do: nil
+  # def build({:attribute_path, _valuepath}), do: nil
 
-  #def build({:filter, _filter}), do: nil
-
+  # def build({:filter, _filter}), do: nil
 
   """
   def build([]), do: []
@@ -110,7 +96,6 @@ defmodule SCIM.V2.Filter.FromParserResult do
    [%PathExpression{value: build(value)} | build(rest)]
   end
   """
-
 end
 
 """

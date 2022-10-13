@@ -1,19 +1,37 @@
 defmodule SCIM.V2.Filter do
-  defmodule FilterExpression do
+  defmodule Filter do
     @moduledoc """
-    Wraps a SCIM filter
-    """
-    defstruct [value: []]
-  end
+    Wraps boolean op, condition, and nested filter clauses
 
-  defmodule PathExpression do
-    @moduledoc """
-    Wraps a SCIM path
+    e.g. the filter `(foo pr or foo eq 1) and (email ew "@example.com" or email ew "@example.org")`
+
+      %Filter{
+        value: %And{
+          value: [
+            %Filter{
+              value: %Or{
+                value: [
+                  %Condition{path: %Path{attribute: "occupation"}, op: :pr},
+                  %Condition{path: %Path{attribute: "occupation"}, op: :eq, value: %Value{type: :number, value: 1}},
+                ]
+              }
+            },
+            %Filter{
+              value: %Or{
+                value: [
+                  %Condition{path: %Path{attribute: "email"}, op: :ew, value: %Value{type: :string, value: "@example.com"}},
+                  %Condition{path: %Path{attribute: "email"}, op: :ew, value: %Value{type: :string, value: "@example.org"}},
+                ]
+              }
+            }
+          ]
+        }
+      }
     """
     defstruct [:value]
   end
 
-  defmodule AttributePathExpression do
+  defmodule Path do
     @moduledoc """
     Describes how to reach an attribute
 
@@ -22,113 +40,131 @@ defmodule SCIM.V2.Filter do
 
     e.g. the `displayName` of `members` whose `name` start with `"foo"`:
 
-      %AttributePathExpression{
-        schema: "",
+      %Path{
         attribute: "members",
         subattribute: "displayName",
-        filter: [
-          %AttributeRequirementExpression{
-            path: %AttributePathExpression{schema: "", attribute: "name", subattribute: nil, filter: nil},
+        filter: %Filter{
+          value: %Condition{
+            path: %Path{attribute: "name"},
             op: :sw,
-            value: %ValueExpression{type: :string, value: "foo"},
+            value: %Value{type: :string, value: "foo"},
           },
-        ]
+        }
       }
     """
-    defstruct [:schema, :attribute, :subattribute, filter: []]
+    defstruct [:schema, :attribute, :subattribute, :filter]
   end
 
-  defmodule AttributeRequirementExpression do
+  defmodule Condition do
     @moduledoc """
-    Describes what is required of an attribute and it's value
-
-    Meant to be used within the `value` of a `FilterExpression` or `filter` of
-    an `AttributePathExpression`, either on it's own or wrapped within
-    `BooleanExpression`.
+    Describes a condition an attribute has to meet.
 
     e.g. `someIdField` has to be equal to `"2819c223-7f76-453a-919d-413861904646"`
 
-      %AttributeRequirementExpression{
-        path: %AttributePathExpression{schema: "", attribute: "someIdField", subattribute: nil, filter: nil},
+      %Condition{
+        path: %Path{attribute: "someIdField"},
         op: :eq,
-        value: %ValueExpression{type: :string, value: "2819c223-7f76-453a-919d-413861904646"},
+        value: %Value{type: :string, value: "2819c223-7f76-453a-919d-413861904646"},
       }
 
     e.g. the `displayName` of `members` whose `name` start with `"foo"` has to end with "bar":
 
-      %AttributeRequirementExpression{
-        path: %AttributePathExpression{
-          schema: "",
+      %Condition{
+        path: %Path{
           attribute: "members",
           subattribute: "displayName",
-          filter: [
-            %AttributeRequirementExpression{
-              path: %AttributePathExpression{schema: "", attribute: "name", subattribute: nil, filter: nil},
+          filter: %Filter{
+            value: %Condition{
+              path: %Path{attribute: "name"},
               op: :sw,
-              value: %ValueExpression{type: :string, value: "foo"},
+              value: %Value{type: :string, value: "foo"},
             },
-          ]
+          }
         },
         op: :ew,
-        value: %ValueExpression{type: :string, value: "bar"},
+        value: %Value{type: :string, value: "bar"},
       }
     """
     defstruct [:path, :op, :value]
   end
 
-  defmodule BooleanExpression do
+  defmodule And do
     @moduledoc """
-    Describes a boolean operation (`and`, `or`, or `not`)
+    Boolean `and` for combining conditions and nested filters
 
-    e.g. `placeOfBirth` must `not` contain `town`
+    e.g. `occupation` must be `carpenter` and `city` must `not` be `Naha`
 
-      %BooleanExpression{
-        op: :not,
+      %And{
         value: [
-          %AttributeRequirementExpression{
-            path: %AttributePathExpression{schema: "", attribute: "placeOfBirth", subattribute: nil, filter: nil},
-            op: :co,
-            value: %ValueExpression{type: :string, value: "town"},
-          }
-        ]
-      }
-
-    e.g. `occupation` must be `carpenter` or `not` `librarian`
-
-      %BooleanExpression{
-        op: :or,
-        value: [
-          %AttributeRequirementExpression{
-            path: %AttributePathExpression{schema: "", attribute: "occupation", subattribute: nil, filter: nil},
+          %Condition{
+            path: %Path{attribute: "occupation"},
             op: :eq,
-            value: %ValueExpression{type: :string, value: "carpenter"},
+            value: %Value{type: :string, value: "carpenter"},
           },
-          %BooleanExpression{
-            op: :not,
-            value: [
-              %AttributeRequirementExpression{
-                path: %AttributePathExpression{schema: "", attribute: "occupation", subattribute: nil, filter: nil},
-                op: :eq,
-                value: %ValueExpression{type: :string, value: "librarian"},
-              }
-            ]
+          %Not{
+            value: %Condition{
+              path: %Path{attribute: "city"},
+              op: :eq,
+              value: %Value{type: :string, value: "Naha"},
+            }
           }
         ]
       }
     """
-    defstruct [:op, value: []]
+    defstruct value: []
   end
 
-  defmodule ValueExpression do
+  defmodule Or do
+    @moduledoc """
+    Boolean `or` for combining conditions and nested filters
+
+    e.g. `occupation` must be `carpenter` or `librarian`
+
+      %Or{
+        value: [
+          %Condition{
+            path: %Path{attribute: "occupation"},
+            op: :eq,
+            value: %Value{type: :string, value: "carpenter"},
+          },
+          %Condition{
+            path: %Path{attribute: "occupation"},
+            op: :eq,
+            value: %Value{type: :string, value: "librarian"},
+          }
+        ]
+      }
+    """
+    defstruct value: []
+  end
+
+  defmodule Not do
+    @moduledoc """
+    Boolean `not` for negating the `and`, `or`, conditions, and nested filters
+
+    e.g. `placeOfBirth` must `not` contain `town`
+
+      %Not{
+        value: %Condition{
+          path: %Path{attribute: "placeOfBirth"},
+          op: :co,
+          value: %Value{type: :string, value: "town"},
+        }
+      }
+    """
+    defstruct [:value]
+  end
+
+  defmodule Value do
     @moduledoc """
     Wraps a value explicitly noting it's type
 
     FIXME: is the implementation result neater with or without wrapping the value?
+
+    e.g. a value of type `string` and literal value "foo"
+
+      %Value{type: :string, value: "foo"},
     """
     defstruct [:type, :value]
-  end
-
-  defmodule GroupingExpression do
-    defstruct [value: []]
   end
 end

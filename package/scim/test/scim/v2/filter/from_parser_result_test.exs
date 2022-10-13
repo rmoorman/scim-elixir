@@ -5,12 +5,13 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
 
   alias SCIM.V2.Filter.{
     FromParserResult,
-    FilterExpression,
-    #PathExpression,
-    AttributeRequirementExpression,
-    AttributePathExpression,
-    #BooleanExpression,
-    ValueExpression,
+    Filter,
+    Path,
+    Condition,
+    And,
+    Or,
+    Not,
+    Value
   }
 
   defp build(type, input) do
@@ -46,13 +47,11 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       assert {:ok, data} = build(:scim_filter, @rule)
 
       expected = [
-        %FilterExpression{
-          value: [
-            %AttributeRequirementExpression{
-              path: %AttributePathExpression{attribute: "id"},
-              op: :pr,
-            }
-          ]
+        %Filter{
+          value: %Condition{
+            path: %Path{attribute: "id"},
+            op: :pr
+          }
         }
       ]
 
@@ -64,14 +63,12 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       assert {:ok, data} = build(:scim_filter, @rule)
 
       expected = [
-        %FilterExpression{
-          value: [
-            %AttributeRequirementExpression{
-              path: %AttributePathExpression{attribute: "id"},
-              op: :eq,
-              value: %ValueExpression{type: :number, value: %Decimal{coef: 1, exp: 0, sign: 1}}
-            }
-          ]
+        %Filter{
+          value: %Condition{
+            path: %Path{attribute: "id"},
+            op: :eq,
+            value: %Value{type: :number, value: %Decimal{coef: 1, exp: 0, sign: 1}}
+          }
         }
       ]
 
@@ -83,14 +80,12 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       assert {:ok, data} = build(:scim_filter, @rule)
 
       expected = [
-        %FilterExpression{
-          value: [
-            %AttributeRequirementExpression{
-              path: %AttributePathExpression{attribute: "contactEmail", subattribute: "value"},
-              op: :ew,
-              value: %ValueExpression{type: :string, value: "@example.com"},
-            }
-          ]
+        %Filter{
+          value: %Condition{
+            path: %Path{attribute: "contactEmail", subattribute: "value"},
+            op: :ew,
+            value: %Value{type: :string, value: "@example.com"}
+          }
         }
       ]
 
@@ -103,16 +98,17 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       assert {:ok, data} = build(:scim_filter, @rule)
 
       expected = [
-        %FilterExpression{
-          value: [
-            %AttributePathExpression{attribute: "emails", filter: [
-              %AttributeRequirementExpression{
-                path: %AttributePathExpression{attribute: "type"},
+        %Filter{
+          value: %Path{
+            attribute: "emails",
+            filter: %Filter{
+              value: %Condition{
+                path: %Path{attribute: "type"},
                 op: :eq,
-                value: %ValueExpression{type: :string, value: "work"},
+                value: %Value{type: :string, value: "work"}
               }
-            ]}
-          ]
+            }
+          }
         }
       ]
 
@@ -125,22 +121,31 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       assert {:ok, data} = build(:scim_path, @rule)
 
       expected = [
-        %FilterExpression{
-          value: [
-            %AttributePathExpression{attribute: "emails", filter: [
-              %AttributeRequirementExpression{
-                path: %AttributePathExpression{attribute: "type"},
-                op: :eq,
-                value: %ValueExpression{type: :string, value: "work"},
-              }
-            ]}
-          ]
+        %Path{
+          attribute: "emails",
+          subattribute: "label",
+          filter: %Filter{
+            value: %And{
+              value: [
+                %Condition{
+                  path: %Path{attribute: "type"},
+                  op: :eq,
+                  value: %Value{type: :string, value: "work"}
+                },
+                %Not{
+                  value: %Condition{
+                    path: %Path{attribute: "value"},
+                    op: :ew,
+                    value: %Value{type: :string, value: "@example.com"}
+                  }
+                }
+              ]
+            }
+          }
         }
       ]
 
       assert data == expected
     end
-
-
   end
 end

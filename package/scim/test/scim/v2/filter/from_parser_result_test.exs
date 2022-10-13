@@ -6,10 +6,11 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
   alias SCIM.V2.Filter.{
     FromParserResult,
     FilterExpression,
-    AttributeExpression,
+    #PathExpression,
+    AttributeRequirementExpression,
     AttributePathExpression,
-    ValuePathExpression,
-    ValueExpression
+    #BooleanExpression,
+    ValueExpression,
   }
 
   defp build(type, input) do
@@ -47,10 +48,9 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       expected = [
         %FilterExpression{
           value: [
-            %AttributeExpression{
-              path: %AttributePathExpression{schema: nil, attribute: "id", subattribute: nil},
+            %AttributeRequirementExpression{
+              path: %AttributePathExpression{attribute: "id"},
               op: :pr,
-              value: nil
             }
           ]
         }
@@ -66,8 +66,8 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       expected = [
         %FilterExpression{
           value: [
-            %AttributeExpression{
-              path: %AttributePathExpression{schema: nil, attribute: "id", subattribute: nil},
+            %AttributeRequirementExpression{
+              path: %AttributePathExpression{attribute: "id"},
               op: :eq,
               value: %ValueExpression{type: :number, value: %Decimal{coef: 1, exp: 0, sign: 1}}
             }
@@ -85,8 +85,8 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
       expected = [
         %FilterExpression{
           value: [
-            %AttributeExpression{
-              path: %AttributePathExpression{schema: nil, attribute: "contactEmail", subattribute: "value"},
+            %AttributeRequirementExpression{
+              path: %AttributePathExpression{attribute: "contactEmail", subattribute: "value"},
               op: :ew,
               value: %ValueExpression{type: :string, value: "@example.com"},
             }
@@ -98,15 +98,20 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
     end
 
     @tag :dev
-    @rule ~s|emails[type eq "work"]|
+    @rule ~s|emails[type eq "work" and not (value ew "@example.com")]|
     test @rule do
       assert {:ok, data} = build(:scim_filter, @rule)
 
       expected = [
         %FilterExpression{
           value: [
-            %ValuePathExpression{
-            },
+            %AttributePathExpression{attribute: "emails", filter: [
+              %AttributeRequirementExpression{
+                path: %AttributePathExpression{attribute: "type"},
+                op: :eq,
+                value: %ValueExpression{type: :string, value: "work"},
+              }
+            ]}
           ]
         }
       ]

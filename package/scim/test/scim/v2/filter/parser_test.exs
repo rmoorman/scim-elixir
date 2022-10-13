@@ -199,6 +199,36 @@ defmodule SCIM.V2.Filter.ParserTest do
       assert result == expected
     end
 
+    @rule ~s|userType eq "Employee" and emails[type eq "work" and value co "@example.com"]|
+    test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      expected = [
+        scim_filter: [
+          attrexp: [
+            attrpath: [schema_uri: "", attrname: "userType"],
+            compareop: "eq",
+            compvalue: "Employee",
+          ],
+          and_or: "and",
+          valuepath: [
+            attrpath: [schema_uri: "", attrname: "emails"],
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "type"],
+              compareop: "eq",
+              compvalue: "work",
+            ],
+            and_or: "and",
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "co",
+              compvalue: "@example.com",
+            ],
+          ]
+        ]
+      ]
+      assert result == expected
+    end
+
     @rule ~s|urn:ietf:params:scim:schemas:core:2.0:User:userName sw "J"|
     test @rule do
       expected = [

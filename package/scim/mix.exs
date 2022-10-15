@@ -37,7 +37,11 @@ defmodule SCIM.MixProject do
       {:phoenix, "~> 1.6"},
       {:jason, "~> 1.0"},
 
-      # test utilities
+      # dependencies for the ecto integration
+      {:ecto, "~> 3.8"},
+
+      # dev and test utilities
+      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
 
       # docs

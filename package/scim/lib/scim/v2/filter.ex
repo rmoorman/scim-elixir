@@ -8,27 +8,44 @@ defmodule SCIM.V2.Filter do
       %Filter{
         value: %And{
           value: [
-            %Filter{
-              value: %Or{
-                value: [
-                  %Condition{path: %Path{attribute: "occupation"}, op: :pr},
-                  %Condition{path: %Path{attribute: "occupation"}, op: :eq, value: %Value{type: :number, value: 1}},
-                ]
-              }
+            value: %Or{
+              value: [
+                %Condition{
+                  op: :pr,
+                  path: %Path{attribute: "occupation"},
+                },
+                %Condition{
+                  op: :eq,
+                  path: %Path{attribute: "occupation"},
+                  value: %Value{type: :number, value: 1},
+                },
+              ]
             },
-            %Filter{
-              value: %Or{
-                value: [
-                  %Condition{path: %Path{attribute: "email"}, op: :ew, value: %Value{type: :string, value: "@example.com"}},
-                  %Condition{path: %Path{attribute: "email"}, op: :ew, value: %Value{type: :string, value: "@example.org"}},
-                ]
-              }
+            value: %Or{
+              value: [
+                %Condition{
+                  op: :ew,
+                  path: %Path{attribute: "email"},
+                  value: %Value{type: :string, value: "@example.com"}
+                },
+                %Condition{
+                  op: :ew,
+                  path: %Path{attribute: "email"},
+                  value: %Value{type: :string, value: "@example.org"}
+                },
+              ]
             }
           ]
         }
       }
     """
+
+    alias SCIM.V2.Filter.{Condition, And, Or, Not}
+
     defstruct [:value]
+
+    @type t :: %Filter{value: possible_values}
+    @type possible_values :: Condition.t() | And.t() | Or.t() | Not.t()
   end
 
   defmodule Path do
@@ -45,14 +62,23 @@ defmodule SCIM.V2.Filter do
         subattribute: "displayName",
         filter: %Filter{
           value: %Condition{
-            path: %Path{attribute: "name"},
             op: :sw,
+            path: %Path{attribute: "name"},
             value: %Value{type: :string, value: "foo"},
           },
         }
       }
     """
+    alias SCIM.V2.Filter.Filter
+
     defstruct [:schema, :attribute, :subattribute, :filter]
+
+    @type t :: %Path{
+            schema: String.t() | nil,
+            attribute: String.t(),
+            subattribute: String.t() | nil,
+            filter: Filter.t() | nil
+          }
   end
 
   defmodule Condition do
@@ -62,30 +88,39 @@ defmodule SCIM.V2.Filter do
     e.g. `someIdField` has to be equal to `"2819c223-7f76-453a-919d-413861904646"`
 
       %Condition{
-        path: %Path{attribute: "someIdField"},
         op: :eq,
+        path: %Path{attribute: "someIdField"},
         value: %Value{type: :string, value: "2819c223-7f76-453a-919d-413861904646"},
       }
 
     e.g. the `displayName` of `members` whose `name` start with `"foo"` has to end with "bar":
 
       %Condition{
+        op: :ew,
         path: %Path{
           attribute: "members",
           subattribute: "displayName",
           filter: %Filter{
             value: %Condition{
-              path: %Path{attribute: "name"},
               op: :sw,
+              path: %Path{attribute: "name"},
               value: %Value{type: :string, value: "foo"},
             },
           }
         },
-        op: :ew,
         value: %Value{type: :string, value: "bar"},
       }
     """
+    alias SCIM.V2.Filter.{Path, Value}
+
     defstruct [:path, :op, :value]
+
+    @type t :: %Condition{
+            path: Path.t(),
+            op: possible_ops,
+            value: Value.t()
+          }
+    @type possible_ops :: :pr | :eq | :ne | :co | :sw | :ew | :gt | :lt | :ge | :le
   end
 
   defmodule And do
@@ -97,21 +132,25 @@ defmodule SCIM.V2.Filter do
       %And{
         value: [
           %Condition{
-            path: %Path{attribute: "occupation"},
             op: :eq,
+            path: %Path{attribute: "occupation"},
             value: %Value{type: :string, value: "carpenter"},
           },
           %Not{
             value: %Condition{
-              path: %Path{attribute: "city"},
               op: :eq,
+              path: %Path{attribute: "city"},
               value: %Value{type: :string, value: "Naha"},
             }
           }
         ]
       }
     """
+    alias SCIM.V2.Filter.Filter
+
     defstruct value: []
+
+    @type t :: %And{value: [Filter.possible_values()]}
   end
 
   defmodule Or do
@@ -123,48 +162,57 @@ defmodule SCIM.V2.Filter do
       %Or{
         value: [
           %Condition{
-            path: %Path{attribute: "occupation"},
             op: :eq,
+            path: %Path{attribute: "occupation"},
             value: %Value{type: :string, value: "carpenter"},
           },
           %Condition{
-            path: %Path{attribute: "occupation"},
             op: :eq,
+            path: %Path{attribute: "occupation"},
             value: %Value{type: :string, value: "librarian"},
           }
         ]
       }
     """
+    alias SCIM.V2.Filter.Filter
+
     defstruct value: []
+
+    @type t :: %Or{value: [Filter.possible_values()]}
   end
 
   defmodule Not do
     @moduledoc """
-    Boolean `not` for negating the `and`, `or`, conditions, and nested filters
+    Boolean `not` for negating the `and`, `or`, and conditions
 
     e.g. `placeOfBirth` must `not` contain `town`
 
       %Not{
         value: %Condition{
-          path: %Path{attribute: "placeOfBirth"},
           op: :co,
+          path: %Path{attribute: "placeOfBirth"},
           value: %Value{type: :string, value: "town"},
         }
       }
     """
+    alias SCIM.V2.Filter.Filter
+
     defstruct [:value]
+
+    @type t :: %Not{value: Filter.possible_values()}
   end
 
   defmodule Value do
     @moduledoc """
-    Wraps a value explicitly noting it's type
-
-    FIXME: is the implementation result neater with or without wrapping the value?
-
-    e.g. a value of type `string` and literal value "foo"
-
-      %Value{type: :string, value: "foo"},
+    Wraps a value while explicitly stating it's type
     """
     defstruct [:type, :value]
+
+    @type t :: t_string | t_number | t_boolean | t_nil | t_keyword
+    @type t_string :: %Value{type: :string, value: String.t()}
+    @type t_number :: %Value{type: :number, value: Decimal.t()}
+    @type t_boolean :: %Value{type: :boolean, value: boolean()}
+    @type t_nil :: %Value{type: nil, value: nil}
+    @type t_keyword :: %Value{type: :keyword, value: String.t()}
   end
 end

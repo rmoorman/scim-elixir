@@ -10,6 +10,7 @@ defmodule SCIM.V2.Filter.Parser do
   elsewhere.
   """
   @external_resource "lib/scim/v2/filter/parser.abnf"
+  @dialyzer :no_unused
 
   use AbnfParsec,
     abnf_file: "lib/scim/v2/filter/parser.abnf",

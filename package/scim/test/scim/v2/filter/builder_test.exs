@@ -1,10 +1,10 @@
-defmodule SCIM.V2.Filter.FromParserResultTest do
+defmodule SCIM.V2.Filter.BuilderTest do
   use ExUnit.Case, async: true
 
   import SCIM.V2.TestHelpers
 
   alias SCIM.V2.Filter.{
-    FromParserResult,
+    Builder,
     Filter,
     Path,
     Condition,
@@ -16,7 +16,7 @@ defmodule SCIM.V2.Filter.FromParserResultTest do
 
   defp build(type, input) do
     parse(type, input)
-    |> FromParserResult.build()
+    |> Builder.build()
   end
 
   describe "returned filter parsing errors" do

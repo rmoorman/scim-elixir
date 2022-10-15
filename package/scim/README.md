@@ -13,7 +13,7 @@ of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:scim, "~> 0.0.0"}
+    {:scim, "~> 0.0.1"}
   ]
 end
 ```

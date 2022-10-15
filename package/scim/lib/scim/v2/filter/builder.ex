@@ -1,4 +1,4 @@
-defmodule SCIM.V2.Filter.FromParserResult do
+defmodule SCIM.V2.Filter.Builder do
   alias SCIM.V2.Filter.{
     Filter,
     Path,

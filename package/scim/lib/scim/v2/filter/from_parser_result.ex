@@ -21,15 +21,140 @@ defmodule SCIM.V2.Filter.FromParserResult do
   def build({:error, message, _rest, _context, _line, _column}),
     do: {:error, {:parser, message}}
 
-  ###
-  ###
-  ###
-
   def build(scim_filter: value), do: [filter(value)]
   def build(scim_path: value), do: [path(value)]
 
-  defp filter(nil), do: nil
-  defp filter(value), do: %Filter{value: value}
+  ###
+  ###
+  ###
+
+  defp filter([_ | _] = value), do: %Filter{value: filter_value(value)}
+  defp filter(_), do: nil
+
+  defp filter_value([_ | _] = filter) do
+    filter
+    |> filter_convert()
+    |> filter_wrap_nots()
+    |> filter_wrap_ands_and_ors()
+    |> filter_flatten()
+    |> filter_unwrap()
+  end
+
+  defp filter_convert(filter) do
+    Enum.map(filter, fn
+      {:filter_grouping, value} -> filter(value)
+      {:valfilter_grouping, value} -> filter(value)
+      {:valuepath, value} -> path(valuepath: value)
+      {:attrexp, value} -> condition(value)
+      other -> other
+    end)
+  end
+
+  defp filter_wrap_nots(filter) do
+    chunk_fn = fn
+      # in case we encounter a `not`, we emit what we currently have and start
+      # a new chunk for `not`
+      {:not, _} = x, acc ->
+        case acc do
+          [] -> {:cont, [x]}
+          acc -> {:cont, Enum.reverse(acc), [x]}
+        end
+
+      # in case the current chunk is a `not` chunk we emit it with the current
+      # element added to it and start a new chunk
+      after_not, [{:not, _}] = acc ->
+        {:cont, Enum.reverse([after_not | acc]), []}
+
+      # in other cases we just add to the current (not a `not`) chunk
+      x, acc ->
+        {:cont, [x | acc]}
+    end
+
+    after_fn = fn acc -> {:cont, Enum.reverse(acc), []} end
+
+    not_chunk_to_struct = fn
+      [{:not, _}, value] -> %Not{value: filter_value([value])}
+      other -> other
+    end
+
+    filter
+    |> Enum.chunk_while([], chunk_fn, after_fn)
+    |> Enum.map(not_chunk_to_struct)
+    |> List.flatten()
+  end
+
+  defp filter_wrap_ands_and_ors(filter) do
+    make_chunk_fn = fn marker, type ->
+      fn
+        # if we encounter a marker item (e. `{:and_or, "and"}`), we pick the
+        # previous item from the accumulator, start accumulating for the given
+        # type and emit what is left (without the taken item)
+        ^marker, [previous | rest] ->
+          {:cont, Enum.reverse(rest), {type, [previous], false}}
+
+        # if we don't expect a marker, we add the element to the accumulator
+        # for the given type and note that we now expect a marker
+        x, {^type, type_acc, false = _expect_marker} ->
+          {:cont, {type, [x | type_acc], true}}
+
+        # if we expect a marker and encounter one as well, we note that a
+        # non-marker should be next
+        ^marker, {^type, type_acc, true = _expect_marker} ->
+          {:cont, {type, type_acc, false}}
+
+        # if we expect a marker but we do not get one, we emit what we have
+        # and start a new chunk with the current element
+        x, {^type, type_acc, true = _expect_marker} ->
+          {:cont, [{type, Enum.reverse(type_acc)}], [x]}
+
+        x, acc ->
+          {:cont, [x | acc]}
+      end
+    end
+
+    after_fn = fn
+      # if the left over accumulator is a type accumulator of a chunk function
+      # emit it's value
+      {type, type_acc, _expect_marker} ->
+        {:cont, [{type, Enum.reverse(type_acc)}], []}
+
+      # otherwise, just emit the rest
+      acc ->
+        {:cont, Enum.reverse(acc), []}
+    end
+
+    make_chunk_to_struct_fn = fn type, struct ->
+      fn
+        {^type, value} when is_list(value) ->
+          struct(struct, value: value)
+
+        other ->
+          other
+      end
+    end
+
+    and_chunk_fn = make_chunk_fn.({:and_or, "and"}, :and)
+    and_chunk_to_struct_fn = make_chunk_to_struct_fn.(:and, And)
+    or_chunk_fn = make_chunk_fn.({:and_or, "or"}, :or)
+    or_chunk_to_struct_fn = make_chunk_to_struct_fn.(:or, Or)
+
+    filter
+    |> Enum.chunk_while([], and_chunk_fn, after_fn)
+    |> List.flatten()
+    |> Enum.map(and_chunk_to_struct_fn)
+    |> Enum.chunk_while([], or_chunk_fn, after_fn)
+    |> List.flatten()
+    |> Enum.map(or_chunk_to_struct_fn)
+  end
+
+  defp filter_flatten(%Filter{value: value}), do: filter_flatten(value)
+  defp filter_flatten(%And{value: value}), do: %And{value: filter_flatten(value)}
+  defp filter_flatten(%Or{value: value}), do: %Or{value: filter_flatten(value)}
+  defp filter_flatten(%Not{value: value}), do: %Not{value: filter_flatten(value)}
+  defp filter_flatten(filter) when is_list(filter), do: Enum.map(filter, &filter_flatten/1)
+  defp filter_flatten(filter), do: filter
+
+  defp filter_unwrap([filter]), do: filter
 
   defp path(valuepath: valuepath, subattr: subattr) do
     valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
@@ -56,143 +181,24 @@ defmodule SCIM.V2.Filter.FromParserResult do
   defp schema(""), do: nil
   defp schema(schema), do: schema
 
-  # def build([]), do: []
-  # def build([{:scim_filter, value}]), do: [%FilterExpression{value: filter(value)}]
-  ## def build([{:scim_path, value}]), do: [%PathExpression{value: build(value)}]
-
-  # defp filter([]), do: []
-  # defp filter([_ | _] = list) do
-  #  # convert nots
-  #  # group ands
-  #  # wrap with ors
-  # end
-
-  # def build([scim_filter: value]), do: [build({:scim_filter, value})]
-  # def build({:scim_filter, value}) do
-  #  case value do
-  #    [valuepath: valuepath, subattr: subattr] ->
-  #      valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
-  #      build({:attribute_path, valuepath})
-
-  #    [valuepath: valuepath] ->
-  #      build({:attribute_path, valuepath})
-
-  #    value -> build({:filter, value})
-  #  end
-  # end
-
-  # def build({:attribute_path, _valuepath}), do: nil
-
-  # def build({:filter, _filter}), do: nil
-
-  """
-  def build([]), do: []
-
-  def build([{:scim_filter, value} | rest]) do
-    [%FilterExpression{value: build(value)} | build(rest)]
-  end
-
-  def build([{:scim_path, value} | rest]) do
-   [%PathExpression{value: build(value)} | build(rest)]
-  end
-  """
-end
-
-"""
-  def build([{:attrexp, attrexp} | rest]) do
-    [build({:attribute_requirement, attrexp}) | build(rest)]
-  end
-
-  def build([{:valuepath, valuepath}, {:subattr, subattr} | rest]) do
-    # when a scim_path is parsed, `subattr` is to be found directly next to
-    # `valuepath` rather than inside the nested `attrpath`, so we move it
-    # to `attrpath` for simplicity
-    valuepath = put_in(valuepath[:attrpath][:subattr], subattr)
-    [build({:attribute_path, valuepath}) | build(rest)]
-  end
-
-  def build([{:valuepath, valuepath} | rest]) do
-    [build({:attribute_path, valuepath}) | build(rest)]
-  end
-
-  def build([{:valfilter_grouping, grouping} | rest]) do
-    [build({:grouping, grouping}) | build(rest)]
-  end
-
-  ###
-  ###
-  ###
-
-  def build({:attribute_requirement, attrexp}) do
-    attrexp_without_requirements = Keyword.drop(attrexp, [:compareop, :compvalue, :presentop])
-    path = build({:attribute_path, attrexp_without_requirements})
-
-    {op, value} =
-      cond do
-        op = attrexp[:presentop] -> {@attr_op_mapping[op], nil}
-        op = attrexp[:compareop] -> {@attr_op_mapping[op], build({:value, attrexp[:compvalue]})}
-      end
-
-    %AttributeRequirementExpression{path: path, op: op, value: value}
-  end
-
-  def build({:attribute_path, attrexp}) do
-    {attrpath, filter} = Keyword.split(attrexp, [:attrpath])
-
-    %AttributePathExpression{
-      schema: build({:schema, attrpath[:attrpath][:schema_uri]}),
-      attribute: attrpath[:attrpath][:attrname],
-      subattribute: attrpath[:attrpath][:subattr],
-      filter: build(filter),
+  defp condition(attrpath: attrpath, presentop: presentop) do
+    %Condition{
+      path: path(attrpath: attrpath),
+      op: @op_mapping[presentop]
     }
   end
 
-  def build({:grouping, grouping}) do
-    IO.inspect(grouping, label: "=========== grouping")
-    %GroupingExpression{value: [build({:filter, grouping})]}
+  defp condition(attrpath: attrpath, compareop: compareop, compvalue: compvalue) do
+    %Condition{
+      path: path(attrpath: attrpath),
+      op: @op_mapping[compareop],
+      value: value(compvalue)
+    }
   end
 
-  def build({:schema, ""}), do: nil
-  def build({:schema, schema}), do: schema
-
-  def build({:filter, filter}) do
-    IO.inspect(filter)
-    filter
-  end
-  #def build({:filter, []}), do: []
-  #def build({:filter, [rest]}), do: build([rest])
-  #def build({:filter, [foo | rest]}), do: [foo | build([rest])]
-  #def build({:filter, [{:not, _}, left, {:and_or, "and"}, {:not, _}, right | rest]}), do: rest
-  #def build({:filter, [{:not, _}, left, {:and_or, "or"}, {:not, _}, right | rest]}), do: rest
-  #def build({:filter, [{:not, _}, left, {:and_or, "and"}, right | rest]}), do: rest
-  #def build({:filter, [{:not, _}, left, {:and_or, "or"}, right | rest]}), do: rest
-  #def build({:filter, [left, {:and_or, "and"}, {:not, _}, right | rest]}) do
-  #  IO.inspect({left, right})
-  #  IO.inspect({build([left]), build([right])})
-  #  #build([left])
-  ##  IO.inspect({left, right})
-  ##  build([left])
-  #  [%BooleaiiinAndOrExpression{
-  #    op: :and,
-  #    left: build([left]),
-  #    right: build([right]),
-  #  }]
-  #  ++ [
-  #      %BooleanExpression{op: :not, value: build([right])}
-  #    ]
-  #  }]
-  #end
-  #def build({:filter, [left, {:and_or, "or"}, {:not, _}, right | rest]}), do: rest
-  #def build({:filter, [left, {:and_or, "and"}, right | rest]}), do: rest
-  #def build({:filter, [left, {:and_or, "or"}, right | rest]}), do: rest
-
-  def build({:value, {:number, value}}), do: %ValueExpression{type: :number, value: value}
-  def build({:value, {:compKeyword, value}}), do: %ValueExpression{type: :keyword, value: value}
-  def build({:value, value}) when is_nil(value), do: %ValueExpression{type: :nil, value: value}
-  def build({:value, value}) when is_boolean(value), do: %ValueExpression{type: :boolean, value: value}
-  def build({:value, value}) when is_binary(value), do: %ValueExpression{type: :string, value: value}
-
-  # defp convert(list) when is_list(list), do: Enum.map(list, &convert/1)
-  # defp convert({tag, tagged}), do: {tag, convert(tagged)}
-  # defp convert(x), do: x
-"""
+  defp value({:number, value}), do: %Value{type: :number, value: value}
+  defp value({:compKeyword, value}), do: %Value{type: :keyword, value: value}
+  defp value(value) when is_nil(value), do: %Value{type: nil, value: value}
+  defp value(value) when is_boolean(value), do: %Value{type: :boolean, value: value}
+  defp value(value) when is_binary(value), do: %Value{type: :string, value: value}
+end

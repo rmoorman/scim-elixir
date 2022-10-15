@@ -9,7 +9,7 @@ defmodule SCIM.V2.Filter.FromParserResult do
     Value
   }
 
-  @op_list [:pr, :eq, :ne, :co, :sw, :ew, :gt, :lt, :ge, :le, :and, :or, :not]
+  @op_list [:pr, :eq, :ne, :co, :sw, :ew, :gt, :lt, :ge, :le]
   @op_mapping Map.new(@op_list, fn op -> {Atom.to_string(op), op} end)
 
   def build({:ok, result, "", _context, _line, _column}),
@@ -21,8 +21,8 @@ defmodule SCIM.V2.Filter.FromParserResult do
   def build({:error, message, _rest, _context, _line, _column}),
     do: {:error, {:parser, message}}
 
-  def build(scim_filter: value), do: [filter(value)]
-  def build(scim_path: value), do: [path(value)]
+  def build(scim_filter: value), do: filter(value)
+  def build(scim_path: value), do: path(value)
 
   ###
   ###

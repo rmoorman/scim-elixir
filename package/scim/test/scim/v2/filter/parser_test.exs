@@ -141,6 +141,7 @@ defmodule SCIM.V2.Filter.ParserTest do
     @rule ~s|userName Eq "john"|
     test @rule do
       assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           attrexp: [
@@ -153,6 +154,7 @@ defmodule SCIM.V2.Filter.ParserTest do
           ]
         ]
       ]
+
       assert result == expected
     end
 
@@ -178,6 +180,7 @@ defmodule SCIM.V2.Filter.ParserTest do
     @rule ~s|userName[value sw "foo" and value ew "bar"]|
     test @rule do
       assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           valuepath: [
@@ -185,17 +188,50 @@ defmodule SCIM.V2.Filter.ParserTest do
             attrexp: [
               attrpath: [schema_uri: "", attrname: "value"],
               compareop: "sw",
-              compvalue: "foo",
+              compvalue: "foo"
             ],
             and_or: "and",
             attrexp: [
               attrpath: [schema_uri: "", attrname: "value"],
               compareop: "ew",
-              compvalue: "bar",
-            ],
+              compvalue: "bar"
+            ]
           ]
         ]
       ]
+
+      assert result == expected
+    end
+
+    @rule ~s|userType eq "Employee" and emails[type eq "work" and value co "@example.com"]|
+    test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
+      expected = [
+        scim_filter: [
+          attrexp: [
+            attrpath: [schema_uri: "", attrname: "userType"],
+            compareop: "eq",
+            compvalue: "Employee"
+          ],
+          and_or: "and",
+          valuepath: [
+            attrpath: [schema_uri: "", attrname: "emails"],
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "type"],
+              compareop: "eq",
+              compvalue: "work"
+            ],
+            and_or: "and",
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "co",
+              compvalue: "@example.com"
+            ]
+          ]
+        ]
+      ]
+
       assert result == expected
     end
 

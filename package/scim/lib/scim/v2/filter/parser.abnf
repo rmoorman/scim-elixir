@@ -22,7 +22,7 @@ scim-path = scim-rfc-path
 ; original:
 ;   FILTER    = attrExp / logExp / valuePath / *1"not" "(" FILTER ")"
 ;
-FILTER    = *ws (attrExp / valuePath / [NOT ws] filter-grouping) [ws AND-OR ws FILTER] *ws
+FILTER    = *ws (attrExp / valuePath / [NOT *ws] filter-grouping) [ws AND-OR ws FILTER] *ws
 filter-grouping = grouping-start FILTER grouping-end
 
 valuePath = attrPath attribute-filter-start valFilter attribute-filter-end

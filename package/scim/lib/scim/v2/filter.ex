@@ -1,60 +1,170 @@
 defmodule SCIM.V2.Filter do
-  # Wraps scim filters
-  defmodule FilterExpression do
+  defmodule Filter do
+    @moduledoc """
+    Wraps boolean op, condition, and nested filter clauses
+
+    e.g. the filter `(foo pr or foo eq 1) and (email ew "@example.com" or email ew "@example.org")`
+
+      %Filter{
+        value: %And{
+          value: [
+            %Filter{
+              value: %Or{
+                value: [
+                  %Condition{path: %Path{attribute: "occupation"}, op: :pr},
+                  %Condition{path: %Path{attribute: "occupation"}, op: :eq, value: %Value{type: :number, value: 1}},
+                ]
+              }
+            },
+            %Filter{
+              value: %Or{
+                value: [
+                  %Condition{path: %Path{attribute: "email"}, op: :ew, value: %Value{type: :string, value: "@example.com"}},
+                  %Condition{path: %Path{attribute: "email"}, op: :ew, value: %Value{type: :string, value: "@example.org"}},
+                ]
+              }
+            }
+          ]
+        }
+      }
+    """
     defstruct [:value]
   end
 
-  # Wraps scim paths
-  defmodule PathExpression do
-    defstruct [:value]
-  end
+  defmodule Path do
+    @moduledoc """
+    Describes how to reach an attribute
 
-  """
-  %AttributeExpression{
-    path: %AttributePathExpression{
-      schema: "",
-      attribute: "members",
-      subattribute: "displayName",
-      filter: [
-        %AttributeExpression{
-          path: %AttributePathExpression {
-            schema: "",
-            attribute: "value",
-            subattribute: nil,
-            filter: nil,
+    Meant to be used as `value` of a `PathExpression` or within the `path` of
+    an `AttributeRequirementExpression`.
+
+    e.g. the `displayName` of `members` whose `name` start with `"foo"`:
+
+      %Path{
+        attribute: "members",
+        subattribute: "displayName",
+        filter: %Filter{
+          value: %Condition{
+            path: %Path{attribute: "name"},
+            op: :sw,
+            value: %Value{type: :string, value: "foo"},
           },
-          comp: %AttributeComparisonExpression{op: :eq, value: %ValueExpression{type: :string, value: "2819c223-7f76-453a-919d-413861904646"}},
-        },
-      ]
-    },
-    comp: %AttributeComparisonExpression{op: :se, value: %ValueExpression{}},
-  }
-  """
+        }
+      }
+    """
+    defstruct [:schema, :attribute, :subattribute, :filter]
+  end
 
-  # Expresses that an attribute should be checked for value or presence
-  defmodule AttributeExpression do
+  defmodule Condition do
+    @moduledoc """
+    Describes a condition an attribute has to meet.
+
+    e.g. `someIdField` has to be equal to `"2819c223-7f76-453a-919d-413861904646"`
+
+      %Condition{
+        path: %Path{attribute: "someIdField"},
+        op: :eq,
+        value: %Value{type: :string, value: "2819c223-7f76-453a-919d-413861904646"},
+      }
+
+    e.g. the `displayName` of `members` whose `name` start with `"foo"` has to end with "bar":
+
+      %Condition{
+        path: %Path{
+          attribute: "members",
+          subattribute: "displayName",
+          filter: %Filter{
+            value: %Condition{
+              path: %Path{attribute: "name"},
+              op: :sw,
+              value: %Value{type: :string, value: "foo"},
+            },
+          }
+        },
+        op: :ew,
+        value: %Value{type: :string, value: "bar"},
+      }
+    """
     defstruct [:path, :op, :value]
   end
 
-  # Expresses the path of an attribute value and filtering to apply...
-  # (mostly used for updating fields)
-  defmodule ValuePathExpression do
-    defstruct [:path, :filter]
+  defmodule And do
+    @moduledoc """
+    Boolean `and` for combining conditions and nested filters
+
+    e.g. `occupation` must be `carpenter` and `city` must `not` be `Naha`
+
+      %And{
+        value: [
+          %Condition{
+            path: %Path{attribute: "occupation"},
+            op: :eq,
+            value: %Value{type: :string, value: "carpenter"},
+          },
+          %Not{
+            value: %Condition{
+              path: %Path{attribute: "city"},
+              op: :eq,
+              value: %Value{type: :string, value: "Naha"},
+            }
+          }
+        ]
+      }
+    """
+    defstruct value: []
   end
 
-  # Expresses the path of an attribute to be checked (nests within
-  # `AttributeExpression` and `ValuePathExpression`)
-  defmodule AttributePathExpression do
-    defstruct [:schema, :attribute, :subattribute]
+  defmodule Or do
+    @moduledoc """
+    Boolean `or` for combining conditions and nested filters
+
+    e.g. `occupation` must be `carpenter` or `librarian`
+
+      %Or{
+        value: [
+          %Condition{
+            path: %Path{attribute: "occupation"},
+            op: :eq,
+            value: %Value{type: :string, value: "carpenter"},
+          },
+          %Condition{
+            path: %Path{attribute: "occupation"},
+            op: :eq,
+            value: %Value{type: :string, value: "librarian"},
+          }
+        ]
+      }
+    """
+    defstruct value: []
   end
 
-  # Expresses how to combine multiple attribute checks (boolean and/or ops)
-  defmodule BooleanExpression do
+  defmodule Not do
+    @moduledoc """
+    Boolean `not` for negating the `and`, `or`, conditions, and nested filters
+
+    e.g. `placeOfBirth` must `not` contain `town`
+
+      %Not{
+        value: %Condition{
+          path: %Path{attribute: "placeOfBirth"},
+          op: :co,
+          value: %Value{type: :string, value: "town"},
+        }
+      }
+    """
     defstruct [:value]
   end
 
-  # Expresses which type of value an attribute should be compared against
-  defmodule ValueExpression do
+  defmodule Value do
+    @moduledoc """
+    Wraps a value explicitly noting it's type
+
+    FIXME: is the implementation result neater with or without wrapping the value?
+
+    e.g. a value of type `string` and literal value "foo"
+
+      %Value{type: :string, value: "foo"},
+    """
     defstruct [:type, :value]
   end
 end

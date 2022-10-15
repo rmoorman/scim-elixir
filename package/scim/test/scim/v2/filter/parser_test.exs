@@ -1,5 +1,7 @@
-defmodule Scim.V2.Filter.ParserTest do
+defmodule SCIM.V2.Filter.ParserTest do
   use ExUnit.Case, async: true
+
+  import SCIM.V2.TestHelpers
 
   describe "parse valid filter without error" do
     @filter_rules [
@@ -63,7 +65,7 @@ defmodule Scim.V2.Filter.ParserTest do
     test "~s|#{@rule}| used as a filter causes an error" do
       rule = @rule
       error = "expected string \"(\""
-      assert {:error, ^error, ^rule, _, _, _ } = parse(:scim_filter, @rule)
+      assert {:error, ^error, ^rule, _, _, _} = parse(:scim_filter, @rule)
     end
 
     @rule ~s|adresses[foo]|
@@ -138,6 +140,8 @@ defmodule Scim.V2.Filter.ParserTest do
 
     @rule ~s|userName Eq "john"|
     test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           attrexp: [
@@ -151,7 +155,7 @@ defmodule Scim.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert result == expected
     end
 
     @rule ~s|name.familyName co "O'Malley"|
@@ -171,6 +175,64 @@ defmodule Scim.V2.Filter.ParserTest do
       ]
 
       assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+    end
+
+    @rule ~s|userName[value sw "foo" and value ew "bar"]|
+    test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
+      expected = [
+        scim_filter: [
+          valuepath: [
+            attrpath: [schema_uri: "", attrname: "userName"],
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "sw",
+              compvalue: "foo"
+            ],
+            and_or: "and",
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "ew",
+              compvalue: "bar"
+            ]
+          ]
+        ]
+      ]
+
+      assert result == expected
+    end
+
+    @rule ~s|userType eq "Employee" and emails[type eq "work" and value co "@example.com"]|
+    test @rule do
+      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
+      expected = [
+        scim_filter: [
+          attrexp: [
+            attrpath: [schema_uri: "", attrname: "userType"],
+            compareop: "eq",
+            compvalue: "Employee"
+          ],
+          and_or: "and",
+          valuepath: [
+            attrpath: [schema_uri: "", attrname: "emails"],
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "type"],
+              compareop: "eq",
+              compvalue: "work"
+            ],
+            and_or: "and",
+            attrexp: [
+              attrpath: [schema_uri: "", attrname: "value"],
+              compareop: "co",
+              compvalue: "@example.com"
+            ]
+          ]
+        ]
+      ]
+
+      assert result == expected
     end
 
     @rule ~s|urn:ietf:params:scim:schemas:core:2.0:User:userName sw "J"|
@@ -316,6 +378,7 @@ defmodule Scim.V2.Filter.ParserTest do
     """
     test @rule do
       assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           filter_grouping: [
@@ -384,6 +447,7 @@ defmodule Scim.V2.Filter.ParserTest do
           ]
         ]
       ]
+
       assert result == expected
     end
 
@@ -470,6 +534,7 @@ defmodule Scim.V2.Filter.ParserTest do
     @rule ~s|id eq 60 and id eq 1188|
     test @rule do
       assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+
       expected = [
         scim_filter: [
           attrexp: [
@@ -485,6 +550,7 @@ defmodule Scim.V2.Filter.ParserTest do
           ]
         ]
       ]
+
       assert result == expected
     end
 
@@ -618,13 +684,5 @@ defmodule Scim.V2.Filter.ParserTest do
 
       assert {:ok, ^expected, "", _, _, _} = parse(:scim_path, @rule)
     end
-  end
-
-  # Call a parser function and assert a timely response.
-  defp parse(parser \\ Scim.V2.Filter.Parser, fun, input)
-  defp parse(parser, fun, input) do
-    task = Task.async(fn -> apply(parser, fun, [input]) end)
-    assert {:ok, result} = Task.yield(task, 200) || Task.shutdown(task)
-    result
   end
 end

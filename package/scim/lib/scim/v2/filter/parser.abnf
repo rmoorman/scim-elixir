@@ -1,0 +1,376 @@
+; Entry point definitions
+;;;;;;;;;;;;;;;;;;;;;;;;;
+scim-filter = FILTER
+scim-path = scim-rfc-path
+
+
+; SCIM Filter ABNF definition (with adjustments)
+; https://www.rfc-editor.org/rfc/rfc7644#section-4
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Custom `FILTER` definition
+; @princemaple notes that there is a missing space in `not (...)`.
+; Furthermore, the original definition leads to infinite recursion in the
+; generated parser.
+; Hence a custom `FILTER`, `valFilter` and supporting `NOT` and `AND-OR`
+; definitions are introduced.
+;
+; Furthermore we use a custom whitespace definition that includes newlines and
+; tabs in order to allow for multiline definitions as well as a grouping
+; definition for easier processing.
+;
+; original:
+;   FILTER    = attrExp / logExp / valuePath / *1"not" "(" FILTER ")"
+;
+FILTER    = *ws (attrExp / valuePath / [NOT *ws] filter-grouping) [ws AND-OR ws FILTER] *ws
+filter-grouping = grouping-start FILTER grouping-end
+
+valuePath = attrPath attribute-filter-start valFilter attribute-filter-end
+            ; FILTER uses sub-attributes of a parent attrPath
+
+; Custom `valFilter`
+;
+; original:
+;   attrExp / logExp / *1"not" "(" valFilter ")"
+;
+valFilter = (attrExp / [NOT ws] valFilter-grouping) [ws AND-OR ws valFilter]
+valFilter-grouping = grouping-start valFilter grouping-end
+
+attrExp   = (attrPath ws presentOp) /
+            (attrPath ws compareOp ws compValue)
+
+; Custom `compValue`
+;
+; Even though the spec mentions
+;
+; `(meta.resourceType eq User) or (meta.resourceType eq Group)`
+;
+; as a filter expression (https://www.rfc-editor.org/rfc/rfc7644#page-17)
+; that can be used to restrict resource types, it does not fit the original ABNF
+; definition as the matching value (`User` or `Group` in the example)
+; needs to be a valid json string (i.e. quoted)
+;
+; So we adjust the definition of `compValue` slightly to also allow for
+; keywords (unquoted sequences of characters).
+; This allows us to extract the `User` and `Group` from the aforementioned expression
+; for mentioned resource type comparison.
+;
+; original:
+;   compValue = false / null / true / number / string
+;             ; rules from JSON (RFC 7159)
+;
+compValue = false / null / true / number / string / compKeyword
+compKeyword = ALPHA *(nameChar)
+
+; Custom alias `presentOp` for the "pr" op used in `attrExp`
+presentOp = "pr"
+
+; Custom `NOT` and `AND-OR` definitions for better customization
+; (to support custom `valFilter` and `FILTER` definitions)
+NOT = "not"
+AND-OR = "and" / "or"
+
+compareOp = "eq" / "ne" / "co" /
+		 "sw" / "ew" /
+		 "gt" / "lt" /
+		 "ge" / "le"
+
+; custom `attrPath`
+; @princemaple noted that:
+;
+; 1. the URI definition is super flexible (`a:::::` is a valid URI)
+; 2. generated parser is greedy and does not perform backtracking
+; `uri:a:b:c will be completely matched by `URI` and there will be nothing left for `ATTRNAME`, hence failing the `attrPath`
+; So an adjusted definition is used for `attrPath`
+;
+; originally:
+;   attrPath  = [URI ":"] ATTRNAME *1subAttr
+;
+; adjusted but not optimal:
+;   attrPath  = (URI / ATTRNAME) *1subAttr
+;		; SCIM attribute name
+;		; URI is SCIM "schema" URI
+attrPath = [schema-uri] ATTRNAME *1subAttr
+schema-uri = *(1*schema-uri-part schema-uri-sep)
+schema-uri-part = ALPHA / DIGIT / "." / "-" / "_"
+schema-uri-sep = %x3A
+
+ATTRNAME  = ALPHA *(nameChar)
+
+nameChar  = "-" / "_" / DIGIT / ALPHA
+
+subAttr   = "." ATTRNAME
+	  ; a sub-attribute of a complex attribute
+
+
+
+
+; SCIM path
+; https://www.rfc-editor.org/rfc/rfc7644.html#page-34
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; @princemaple notes that because of lack of backtracking in the parser, we
+; need the longest matching sequence go first, Otherwise `attrPath` always
+; matches the prefix of `valuePath` and the `valuePath` branch is never
+; reached.
+; So we use an adjusted version here
+;
+; originally:
+;   scim-rfc-path = attrPath / valuePath [subAttr]
+;
+scim-rfc-path = valuePath [subAttr] / attrPath
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; UTILS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+grouping-start = "("
+grouping-end = ")"
+attribute-filter-start = "["
+attribute-filter-end = "]"
+
+
+; whitespace (\n \r space or tab)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ws = 1*(LF / CR / SP / HTAB)
+
+
+
+
+
+; URI definition
+; https://www.rfc-editor.org/rfc/rfc3986#appendix-A
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+URI           = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+
+hier-part     = "//" authority path-abempty
+	    / path-absolute
+	    / path-rootless
+	    / path-empty
+
+URI-reference = URI / relative-ref
+
+absolute-URI  = scheme ":" hier-part [ "?" query ]
+
+relative-ref  = relative-part [ "?" query ] [ "#" fragment ]
+
+relative-part = "//" authority path-abempty
+	    / path-absolute
+	    / path-noscheme
+	    / path-empty
+
+scheme        = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+
+authority     = [ userinfo "@" ] host [ ":" port ]
+userinfo      = *( unreserved / pct-encoded / sub-delims / ":" )
+host          = IP-literal / IPv4address / reg-name
+port          = *DIGIT
+
+IP-literal    = "[" ( IPv6address / IPvFuture  ) "]"
+
+IPvFuture     = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
+
+IPv6address   =                            6( h16 ":" ) ls32
+	    /                       "::" 5( h16 ":" ) ls32
+	    / [               h16 ] "::" 4( h16 ":" ) ls32
+	    / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+	    / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+	    / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
+	    / [ *4( h16 ":" ) h16 ] "::"              ls32
+	    / [ *5( h16 ":" ) h16 ] "::"              h16
+	    / [ *6( h16 ":" ) h16 ] "::"
+
+h16           = 1*4HEXDIG
+ls32          = ( h16 ":" h16 ) / IPv4address
+IPv4address   = dec-octet "." dec-octet "." dec-octet "." dec-octet
+dec-octet     = DIGIT                 ; 0-9
+	    / %x31-39 DIGIT         ; 10-99
+	    / "1" 2DIGIT            ; 100-199
+	    / "2" %x30-34 DIGIT     ; 200-249
+	    / "25" %x30-35          ; 250-255
+
+reg-name      = *( unreserved / pct-encoded / sub-delims )
+
+path          = path-abempty    ; begins with "/" or is empty
+	    / path-absolute   ; begins with "/" but not "//"
+	    / path-noscheme   ; begins with a non-colon segment
+	    / path-rootless   ; begins with a segment
+	    / path-empty      ; zero characters
+
+path-abempty  = *( "/" segment )
+path-absolute = "/" [ segment-nz *( "/" segment ) ]
+path-noscheme = segment-nz-nc *( "/" segment )
+path-rootless = segment-nz *( "/" segment )
+path-empty    = 0<pchar>
+
+segment       = *pchar
+segment-nz    = 1*pchar
+segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )
+	    ; non-zero-length segment without any colon ":"
+
+pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
+
+query         = *( pchar / "/" / "?" )
+
+fragment      = *( pchar / "/" / "?" )
+
+pct-encoded   = "%" HEXDIG HEXDIG
+
+unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
+reserved      = gen-delims / sub-delims
+gen-delims    = ":" / "/" / "?" / "#" / "[" / "]" / "@"
+sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
+	    / "*" / "+" / "," / ";" / "="
+
+
+
+; JSON ABNF (only partly used)
+; https://trac.ietf.org/trac/json/browser/abnf/json.abnf?rev=2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;JSON-text = object / array
+;begin-array     = ws %x5B ws  ; [ left square bracket
+;begin-object    = ws %x7B ws  ; { left curly bracket
+;end-array       = ws %x5D ws  ; ] right square bracket
+;end-object      = ws %x7D ws  ; } right curly bracket
+;name-separator  = ws %x3A ws  ; : colon
+;value-separator = ws %x2C ws  ; , comma
+;ws = *(
+;   %x20 /              ; Space
+;   %x09 /              ; Horizontal tab
+;   %x0A /              ; Line feed or New line
+;   %x0D                ; Carriage return
+;   )
+;value = false / null / true / object / array / number / string
+;false = %x66.61.6c.73.65   ; false
+;null  = %x6e.75.6c.6c      ; null
+;true  = %x74.72.75.65      ; true
+;object = begin-object [ member *( value-separator member ) ]
+;       end-object
+;member = string name-separator value
+;array = begin-array [ value *( value-separator value ) ] end-array
+;number = [ minus ] int [ frac ] [ exp ]
+;decimal-point = %x2E       ; .
+;digit1-9 = %x31-39         ; 1-9
+;e = %x65 / %x45            ; e E
+;exp = e [ minus / plus ] 1*DIGIT
+;frac = decimal-point 1*DIGIT
+;int = zero / ( digit1-9 *DIGIT )
+;minus = %x2D               ; -
+;plus = %x2B                ; +
+;zero = %x30                ; 0
+;string = quotation-mark *char quotation-mark
+;char = unescaped /
+;  escape (
+;      %x22 /          ; "    quotation mark  U+0022
+;      %x5C /          ; \    reverse solidus U+005C
+;      %x2F /          ; /    solidus         U+002F
+;      %x62 /          ; b    backspace       U+0008
+;      %x66 /          ; f    form feed       U+000C
+;      %x6E /          ; n    line feed       U+000A
+;      %x72 /          ; r    carriage return U+000D
+;      %x74 /          ; t    tab             U+0009
+;      %x75 4HEXDIG )  ; uXXXX                U+XXXX
+;escape = %x5C              ; \
+;quotation-mark = %x22      ; "
+;unescaped = %x20-21 / %x23-5B / %x5D-10FFFF
+;
+;HEXDIG = DIGIT / %x41-46 / %x61-66   ; 0-9, A-F, or a-f
+;     ; HEXDIG equivalent to HEXDIG rule in [RFC5234]
+;DIGIT = %x30-39            ; 0-9
+;    ; DIGIT equivalent to DIGIT rule in [RFC5234]
+
+false = %x66.61.6c.73.65   ; false
+null  = %x6e.75.6c.6c      ; null
+true  = %x74.72.75.65      ; true
+string = quotation-mark *json-char quotation-mark
+quotation-mark = %x22      ; "
+json-char = unescaped /
+  escape (
+      %x22 /          ; "    quotation mark  U+0022
+      %x5C /          ; \    reverse solidus U+005C
+      %x2F /          ; /    solidus         U+002F
+      %x62 /          ; b    backspace       U+0008
+      %x66 /          ; f    form feed       U+000C
+      %x6E /          ; n    line feed       U+000A
+      %x72 /          ; r    carriage return U+000D
+      %x74 /          ; t    tab             U+0009
+      %x75 4HEXDIG )  ; uXXXX                U+XXXX
+escape = %x5C              ; \
+unescaped = %x20-21 / %x23-5B / %x5D-10FFFF
+number = [ minus ] int [ frac ] [ exp ]
+minus = %x2D               ; -
+plus = %x2B                ; +
+int = zero / ( digit1-9 *DIGIT )
+zero = %x30                ; 0
+digit1-9 = %x31-39         ; 1-9
+frac = decimal-point 1*DIGIT
+exp = e [ minus / plus ] 1*DIGIT
+e = %x65 / %x45            ; e E
+decimal-point = %x2E       ; .
+
+
+
+
+
+; CORE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+ALPHA          =  %x41-5A / %x61-7A   ; A-Z / a-z
+
+BIT            =  "0" / "1"
+
+CHAR           =  %x01-7F
+		; any 7-bit US-ASCII character,
+		;  excluding NUL
+
+CR             =  %x0D
+		; carriage return
+
+CRLF           =  CR LF
+		; Internet standard newline
+
+CTL            =  %x00-1F / %x7F
+		; controls
+
+DIGIT          =  %x30-39
+		; 0-9
+
+DQUOTE         =  %x22
+		; " (Double Quote)
+
+HEXDIG         =  DIGIT / "A" / "B" / "C" / "D" / "E" / "F"
+
+HTAB           =  %x09
+		; horizontal tab
+
+LF             =  %x0A
+		; linefeed
+
+LWSP           =  *(WSP / CRLF WSP)
+		; Use of this linear-white-space rule
+		;  permits lines containing only white
+		;  space that are no longer legal in
+		;  mail headers and have caused
+		;  interoperability problems in other
+		;  contexts.
+		; Do not use when defining mail
+		;  headers and use with caution in
+		;  other contexts.
+
+OCTET          =  %x00-FF
+		; 8 bits of data
+
+SP             =  %x20
+
+VCHAR          =  %x21-7E
+		; visible (printing) characters
+
+WSP            =  SP / HTAB
+		; white space

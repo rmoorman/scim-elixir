@@ -4,7 +4,7 @@ defmodule SCIM.MixProject do
   def project() do
     [
       app: :scim,
-      version: "0.0.0",
+      version: "0.0.1",
       elixir: "~> 1.13",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -30,6 +30,8 @@ defmodule SCIM.MixProject do
   defp deps() do
     [
       {:plug, ">= 1.13.0"},
+      {:abnf_parsec, "~> 1.0", runtime: false},
+      {:decimal, "~> 2.0"},
 
       # dependencies for the phoenix integration
       {:phoenix, "~> 1.6"},

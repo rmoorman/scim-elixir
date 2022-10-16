@@ -72,6 +72,15 @@ defmodule SCIM.V2.Filter.Parser do
       "subAttr"
     ]
 
+  @type parse_result ::
+          {:ok, [{parse_types, any()}], String.t(), parse_context, parse_line, parse_column}
+          | {:error, String.t(), String.t(), parse_context, parse_line, parse_column}
+  @typep parse_types :: :scim_filter | :scim_path
+  @typep parse_context :: map()
+  @typep parse_line :: {pos_integer(), pos_integer()}
+  @typep parse_column :: pos_integer()
+
+  @spec parse(type :: parse_types, input :: String.t()) :: parse_result
   def parse(:scim_filter, input), do: scim_filter(input)
   def parse(:scim_path, input), do: scim_path(input)
 

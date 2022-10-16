@@ -12,8 +12,9 @@ defmodule SCIM.V2.Filter.Builder do
   @op_list [:pr, :eq, :ne, :co, :sw, :ew, :gt, :lt, :ge, :le]
   @op_mapping Map.new(@op_list, fn op -> {Atom.to_string(op), op} end)
 
+  @spec build(SCIM.V2.Filter.Parser.parse_result()) :: {:ok, Filter.t() | Path.t()} | {:error, {:parser, String.t()}}
   def build({:ok, result, "", _context, _line, _column}),
-    do: {:ok, build(result)}
+    do: {:ok, build_result(result)}
 
   def build({:ok, _result, rest, _context, _line, _column}),
     do: {:error, {:parser, "unparsable rest: #{rest}"}}
@@ -21,12 +22,12 @@ defmodule SCIM.V2.Filter.Builder do
   def build({:error, message, _rest, _context, _line, _column}),
     do: {:error, {:parser, message}}
 
-  def build(scim_filter: value), do: filter(value)
-  def build(scim_path: value), do: path(value)
+  ###
+  ###
+  ###
 
-  ###
-  ###
-  ###
+  defp build_result(scim_filter: value), do: filter(value)
+  defp build_result(scim_path: value), do: path(value)
 
   defp filter([_ | _] = value), do: %Filter{value: filter_value(value)}
   defp filter(_), do: nil

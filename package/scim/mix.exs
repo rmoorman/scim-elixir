@@ -43,6 +43,7 @@ defmodule SCIM.MixProject do
       # dev and test utilities
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:ecto_sqlite3, "~> 0.8.0", only: [:test], runtime: false},
 
       # docs
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}

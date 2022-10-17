@@ -3,6 +3,12 @@ defmodule SCIM.V2.Filter.ParserTest do
 
   import SCIM.V2.TestHelpers
 
+  alias SCIM.V2.Filter.Parser
+
+  defp parse(input, type) do
+    assert_timely_return(fn -> Parser.parse(input, type) end)
+  end
+
   describe "parse valid filter without error" do
     @filter_rules [
       # filter rules (from spec)
@@ -32,7 +38,7 @@ defmodule SCIM.V2.Filter.ParserTest do
 
     for rule <- @filter_rules do
       test "filter rule ~s|#{rule}|" do
-        assert {:ok, _result, "" = _rest, _, _, _} = parse(:scim_filter, unquote(rule))
+        assert {:ok, _result, "" = _rest, _, _, _} = parse(unquote(rule), :scim_filter)
       end
     end
   end
@@ -55,7 +61,7 @@ defmodule SCIM.V2.Filter.ParserTest do
 
     for rule <- @path_rules do
       test "path rule ~s|#{rule}|" do
-        assert {:ok, _result, "" = _rest, _, _, _} = parse(:scim_path, unquote(rule))
+        assert {:ok, _result, "" = _rest, _, _, _} = parse(unquote(rule), :scim_path)
       end
     end
   end
@@ -65,82 +71,82 @@ defmodule SCIM.V2.Filter.ParserTest do
     test "~s|#{@rule}| used as a filter causes an error" do
       rule = @rule
       error = "expected string \"(\""
-      assert {:error, ^error, ^rule, _, _, _} = parse(:scim_filter, @rule)
+      assert {:error, ^error, ^rule, _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule ~s|adresses[foo]|
     test "~s|#{@rule}| has unparsed rest" do
-      assert {:ok, _, "[foo]", _, _, _} = parse(:scim_path, @rule)
+      assert {:ok, _, "[foo]", _, _, _} = parse(@rule, :scim_path)
     end
 
     @rule ~s|adresses[zip sw "1234"|
     test "~s|#{@rule}| has unparsed rest" do
-      assert {:ok, _, ~s|[zip sw "1234"|, _, _, _} = parse(:scim_path, @rule)
+      assert {:ok, _, ~s|[zip sw "1234"|, _, _, _} = parse(@rule, :scim_path)
     end
   end
 
   describe "result of parsing valid filter rule" do
     @rule ~s|id eq User|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       assert [scim_filter: [attrexp: [_, _, compvalue: {:compkeyword, "User"}]]] = result
     end
 
     @rule ~s|id eq "foo"|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       assert [scim_filter: [attrexp: [_, _, compvalue: "foo"]]] = result
     end
 
     @rule ~s|id eq true|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       assert [scim_filter: [attrexp: [_, _, compvalue: true]]] = result
     end
 
     @rule ~s|id eq false|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       assert [scim_filter: [attrexp: [_, _, compvalue: false]]] = result
     end
 
     @rule ~s|id eq null|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       assert [scim_filter: [attrexp: [_, _, compvalue: nil]]] = result
     end
 
     @rule ~s|id eq 1|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       value = {:number, %Decimal{sign: 1, coef: 1, exp: 0}}
       assert [scim_filter: [attrexp: [_, _, compvalue: ^value]]] = result
     end
 
     @rule ~s|id eq 1.4|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       value = {:number, %Decimal{sign: 1, coef: 14, exp: -1}}
       assert [scim_filter: [attrexp: [_, _, compvalue: ^value]]] = result
     end
 
     @rule ~s|id eq -1.4|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       value = {:number, %Decimal{sign: -1, coef: 14, exp: -1}}
       assert [scim_filter: [attrexp: [_, _, compvalue: ^value]]] = result
     end
 
     @rule ~s|id eq -1.4e+10|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
       value = {:number, %Decimal{sign: -1, coef: 14, exp: 9}}
       assert [scim_filter: [attrexp: [_, _, compvalue: ^value]]] = result
     end
 
     @rule ~s|userName Eq "john"|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
 
       expected = [
         scim_filter: [
@@ -174,12 +180,12 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule ~s|userName[value sw "foo" and value ew "bar"]|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
 
       expected = [
         scim_filter: [
@@ -205,7 +211,7 @@ defmodule SCIM.V2.Filter.ParserTest do
 
     @rule ~s|userType eq "Employee" and emails[type eq "work" and value co "@example.com"]|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
 
       expected = [
         scim_filter: [
@@ -250,7 +256,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule ~s|not (meta.resourceType eq User) or (meta.resourceType eq Group)|
@@ -276,7 +282,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule ~s|(meta.resourceType eq User) or (meta.resourceType eq Group and (meta.resourceType eq Kaas or meta.foo eq Bar) or meta.foo eq Baz)|
@@ -321,7 +327,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule ~s|(id eq "foo") or (id eq "bar" or id eq "baz") or (id eq "qux")|
@@ -360,7 +366,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule """
@@ -377,7 +383,7 @@ defmodule SCIM.V2.Filter.ParserTest do
     )
     """
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
 
       expected = [
         scim_filter: [
@@ -528,12 +534,12 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
 
     @rule ~s|id eq 60 and id eq 1188|
     test @rule do
-      assert {:ok, result, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, result, "", _, _, _} = parse(@rule, :scim_filter)
 
       expected = [
         scim_filter: [
@@ -580,7 +586,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_filter, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_filter)
     end
   end
 
@@ -596,7 +602,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_path, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_path)
     end
 
     @rule ~s|urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber.value|
@@ -611,7 +617,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_path, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_path)
     end
 
     @rule ~s|emails[type eq "work" and value sw "department-sales." and value ew "example.com"].value|
@@ -645,7 +651,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_path, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_path)
     end
 
     @rule ~s|urn:ietf:params:scim:schemas:extension:foo:2.0:User:bars[value sw "baz" or not (value sw "qux" and value ew "baz")].value|
@@ -682,7 +688,7 @@ defmodule SCIM.V2.Filter.ParserTest do
         ]
       ]
 
-      assert {:ok, ^expected, "", _, _, _} = parse(:scim_path, @rule)
+      assert {:ok, ^expected, "", _, _, _} = parse(@rule, :scim_path)
     end
   end
 end

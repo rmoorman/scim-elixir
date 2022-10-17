@@ -80,9 +80,9 @@ defmodule SCIM.V2.Filter.Parser do
   @typep parse_line :: {pos_integer(), pos_integer()}
   @typep parse_column :: pos_integer()
 
-  @spec parse(type :: parse_types, input :: String.t()) :: parse_result
-  def parse(:scim_filter, input), do: scim_filter(input)
-  def parse(:scim_path, input), do: scim_path(input)
+  @spec parse(input :: String.t(), type :: parse_types) :: parse_result
+  def parse(input, :scim_filter), do: scim_filter(input)
+  def parse(input, :scim_path), do: scim_path(input)
 
   # convert `{:subattr, [".", {:attrname, "familyName"}]}` to `{:subattr, ["familyName"]}`
   defp extract_subname(rest, [{:attrname, name}, "."], context, _line, _offset) do

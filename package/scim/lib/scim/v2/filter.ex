@@ -1,4 +1,6 @@
 defmodule SCIM.V2.Filter do
+  alias SCIM.V2.Filter.{Parser, Builder}
+
   defmodule Filter do
     @moduledoc """
     Wraps boolean op, condition, and nested filter clauses
@@ -42,10 +44,11 @@ defmodule SCIM.V2.Filter do
 
     alias SCIM.V2.Filter.{Condition, And, Or, Not}
 
+    @enforce_keys [:value]
     defstruct [:value]
 
-    @type t :: %Filter{value: possible_values}
-    @type possible_values :: Condition.t() | And.t() | Or.t() | Not.t()
+    @type t :: %Filter{value: possible_value}
+    @type possible_value :: Condition.t() | And.t() | Or.t() | Not.t()
   end
 
   defmodule Path do
@@ -71,6 +74,7 @@ defmodule SCIM.V2.Filter do
     """
     alias SCIM.V2.Filter.Filter
 
+    @enforce_keys [:attribute]
     defstruct [:schema, :attribute, :subattribute, :filter]
 
     @type t :: %Path{
@@ -113,14 +117,22 @@ defmodule SCIM.V2.Filter do
     """
     alias SCIM.V2.Filter.{Path, Value}
 
+    @enforce_keys [:path, :op]
     defstruct [:path, :op, :value]
 
-    @type t :: %Condition{
+    @type t :: t_compare | t_present
+    @type t_compare :: %Condition{
             path: Path.t(),
-            op: possible_ops,
+            op: op_with_value,
             value: Value.t()
           }
-    @type possible_ops :: :pr | :eq | :ne | :co | :sw | :ew | :gt | :lt | :ge | :le
+    @type t_present :: %Condition{
+            path: Path.t(),
+            op: op_without_value,
+            value: nil
+          }
+    @type op_with_value :: :eq | :ne | :co | :sw | :ew | :gt | :lt | :ge | :le
+    @type op_without_value :: :pr
   end
 
   defmodule And do
@@ -148,9 +160,10 @@ defmodule SCIM.V2.Filter do
     """
     alias SCIM.V2.Filter.Filter
 
-    defstruct value: []
+    @enforce_keys [:value]
+    defstruct [:value]
 
-    @type t :: %And{value: [Filter.possible_values()]}
+    @type t :: %And{value: [Filter.possible_value()]}
   end
 
   defmodule Or do
@@ -176,9 +189,10 @@ defmodule SCIM.V2.Filter do
     """
     alias SCIM.V2.Filter.Filter
 
-    defstruct value: []
+    @enforce_keys [:value]
+    defstruct [:value]
 
-    @type t :: %Or{value: [Filter.possible_values()]}
+    @type t :: %Or{value: [Filter.possible_value()]}
   end
 
   defmodule Not do
@@ -197,15 +211,17 @@ defmodule SCIM.V2.Filter do
     """
     alias SCIM.V2.Filter.Filter
 
+    @enforce_keys [:value]
     defstruct [:value]
 
-    @type t :: %Not{value: Filter.possible_values()}
+    @type t :: %Not{value: Filter.possible_value()}
   end
 
   defmodule Value do
     @moduledoc """
     Wraps a value while explicitly stating it's type
     """
+    @enforce_keys [:type, :value]
     defstruct [:type, :value]
 
     @type t :: t_string | t_number | t_boolean | t_nil | t_keyword
@@ -214,5 +230,17 @@ defmodule SCIM.V2.Filter do
     @type t_boolean :: %Value{type: :boolean, value: boolean()}
     @type t_nil :: %Value{type: nil, value: nil}
     @type t_keyword :: %Value{type: :keyword, value: String.t()}
+  end
+
+  @spec filter(input :: String.t()) :: {:ok, Filter.t()} | {:error, {:parser, String.t()}}
+  def filter(input), do: build(input, :scim_filter)
+
+  @spec path(input :: String.t()) :: {:ok, Path.t()} | {:error, {:parser, String.t()}}
+  def path(input), do: build(input, :scim_path)
+
+  defp build(input, type) do
+    input
+    |> Parser.parse(type)
+    |> Builder.build()
   end
 end

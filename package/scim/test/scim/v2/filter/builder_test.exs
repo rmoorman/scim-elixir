@@ -1,9 +1,8 @@
 defmodule SCIM.V2.Filter.BuilderTest do
   use ExUnit.Case, async: true
 
-  import SCIM.V2.TestHelpers
-
   alias SCIM.V2.Filter.{
+    Parser,
     Builder,
     Filter,
     Path,
@@ -14,15 +13,16 @@ defmodule SCIM.V2.Filter.BuilderTest do
     Value
   }
 
-  defp build(type, input) do
-    parse(type, input)
+  defp build(input, type) do
+    input
+    |> Parser.parse(type)
     |> Builder.build()
   end
 
   describe "returned filter parsing errors" do
     @rule "!invalid!"
     test @rule do
-      assert {:error, {:parser, error}} = build(:scim_filter, @rule)
+      assert {:error, {:parser, error}} = build(@rule, :scim_filter)
       assert error == "expected string \"(\""
     end
   end
@@ -30,13 +30,13 @@ defmodule SCIM.V2.Filter.BuilderTest do
   describe "returned path parsing errors" do
     @rule "!invalid!"
     test @rule do
-      assert {:error, {:parser, error}} = build(:scim_path, @rule)
+      assert {:error, {:parser, error}} = build(@rule, :scim_path)
       assert error == "expected ASCII character in the range 'A' to 'Z' or in the range 'a' to 'z'"
     end
 
     @rule "field!"
     test @rule do
-      assert {:error, {:parser, error}} = build(:scim_path, @rule)
+      assert {:error, {:parser, error}} = build(@rule, :scim_path)
       assert error == "unparsable rest: !"
     end
   end
@@ -426,7 +426,7 @@ defmodule SCIM.V2.Filter.BuilderTest do
 
     for {rule, expected} <- @filter_rules do
       test "filter rule ~s|#{rule}|" do
-        assert {:ok, data} = build(:scim_filter, unquote(rule))
+        assert {:ok, data} = build(unquote(rule), :scim_filter)
         assert data == unquote(Macro.escape(expected))
       end
     end
@@ -563,7 +563,7 @@ defmodule SCIM.V2.Filter.BuilderTest do
 
     for {rule, expected} <- @path_rules do
       test "path rule ~s|#{rule}|" do
-        assert {:ok, data} = build(:scim_path, unquote(rule))
+        assert {:ok, data} = build(unquote(rule), :scim_path)
         assert data == unquote(Macro.escape(expected))
       end
     end

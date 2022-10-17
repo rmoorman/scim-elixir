@@ -24,3 +24,6 @@ scim-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Database files (for tests)
+*.sqlite3*
